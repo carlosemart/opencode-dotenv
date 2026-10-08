@@ -108,4 +108,30 @@ describe("loadEnv", () => {
 
     expect((await load({ files: [".env.custom"] })).env.A).toBe("custom")
   })
+
+  it("exports only global variables to process.env by default", async () => {
+    writeFile(globalDir, ".env", "GLOBAL_KEY=g\nSHARED=global\n")
+    writeFile(project, ".env", "PROJECT_KEY=p\nSHARED=project\n")
+
+    const result = await load()
+    expect(result.processEnv.GLOBAL_KEY).toBe("g")
+    expect(result.processEnv.PROJECT_KEY).toBeUndefined()
+    // Overridden by the project layer, so it is not exported globally.
+    expect(result.processEnv.SHARED).toBeUndefined()
+  })
+
+  it("exports every layer with processEnv: all", async () => {
+    writeFile(globalDir, ".env", "GLOBAL_KEY=g\n")
+    writeFile(project, ".env", "PROJECT_KEY=p\n")
+
+    const result = await load({ processEnv: "all" })
+    expect(result.processEnv.GLOBAL_KEY).toBe("g")
+    expect(result.processEnv.PROJECT_KEY).toBe("p")
+  })
+
+  it("exports nothing with processEnv: none", async () => {
+    writeFile(globalDir, ".env", "GLOBAL_KEY=g\n")
+
+    expect((await load({ processEnv: "none" })).processEnv).toEqual({})
+  })
 })

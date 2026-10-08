@@ -15,7 +15,8 @@
 - **Scoped injection** into two surfaces: the environment of shell commands and
   the configuration of MCP servers.
 - **`{env:VAR}` and `${VAR}` resolution** in MCP headers/environment from the
-  loaded `.env`, without writing to `process.env`.
+  loaded `.env`, with a configurable export to `process.env` for native
+  `{env:VAR}` expansion.
 - **Variable expansion** of `${VAR}` / `$VAR` inside values.
 - **Optional dotenvx decryption** of `encrypted:` values.
 - **Safe merging**: existing environment variables win unless `override` is set.
@@ -125,12 +126,32 @@ A project `.env` never leaks into another project.
 | `dotenvx`   | `boolean`  | `false`          | Decrypt `encrypted:` values through dotenvx.             |
 | `shell`     | `boolean`  | `true`           | Inject into the shell command environment.               |
 | `mcp`       | `boolean`  | `true`           | Resolve `{env:VAR}` / `${VAR}` in the MCP configuration. |
+| `processEnv`| `string`   | `"global"`       | Export loaded variables to `process.env` so native `{env:VAR}` resolves: `"global"`, `"all"` or `"none"`. |
 | `layers`    | `object`   | all `true`       | Enable/disable each layer (`global`, `custom`, `project`, `dotenvDir`). |
 | `quiet`     | `boolean`  | `false`          | Silence warnings.                                        |
 
 ## MCP resolution
 
-For every MCP server, the plugin substitutes `{env:VAR}` and `${VAR}` in:
+There are two ways a token in the MCP configuration gets a value:
+
+- **`${VAR}`** is resolved by the plugin from the loaded `.env` files (any
+  layer), scoped to the location. This always works.
+- **`{env:VAR}`** is expanded **natively by OpenCode from `process.env`**, before
+  the plugin sees the configuration. If `VAR` is not in `process.env`, it becomes
+  empty. The plugin therefore exports selected variables to `process.env`
+  according to the `processEnv` option:
+
+| `processEnv` | Exported to `process.env`                     | `{env:VAR}` works for |
+| ------------ | --------------------------------------------- | --------------------- |
+| `"global"`   | global + custom layers (user-level)           | user-level secrets    |
+| `"all"`      | every layer, including project                | everything (project secrets become visible to the shared process) |
+| `"none"`     | nothing                                       | only variables already in the environment |
+
+Project-layer values are intentionally **not** exported in `"global"` mode, so a
+project secret never leaks into the shared process. Use `${VAR}` for
+project-scoped values.
+
+The plugin also substitutes `${VAR}` and `{env:VAR}` in:
 
 - `headers` of `remote` servers;
 - `environment` of `local` servers.
@@ -150,8 +171,11 @@ installed, encrypted values are kept as-is and a warning is logged.
 
 - **Never** commit a real `.env`: it is already in `.gitignore`.
 - The plugin never prints variable values; diagnostics use names and counts.
-- Injection is scoped to the location; the plugin does not write to the shared
-  `process.env`, so secrets do not leak between projects.
+- Shell injection and `${VAR}` resolution are scoped to the location.
+- Variables are exported to the shared `process.env` only as configured by
+  `processEnv`. The default `"global"` exports user-level values and never a
+  value overridden by the project layer, so project secrets do not leak between
+  projects. Use `"none"` for the strictest scoping.
 - Unresolved MCP tokens are reported by name only.
 
 ## Development

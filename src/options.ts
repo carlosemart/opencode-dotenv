@@ -24,6 +24,9 @@ export interface LayerOptions {
   dotenvDir: boolean
 }
 
+/** How much of the loaded environment is exported to `process.env`. */
+export type ProcessEnvMode = "global" | "all" | "none"
+
 export interface DotenvOptions {
   /** Explicit profile; wins over `OPENCODE_ENV`. */
   env: string | null
@@ -43,6 +46,13 @@ export interface DotenvOptions {
   shell: boolean
   /** Resolve `{env:VAR}` / `${VAR}` in the MCP configuration. */
   mcp: boolean
+  /**
+   * Export loaded variables to `process.env` so OpenCode's native `{env:VAR}`
+   * expansion resolves them. `"global"` exports only user-level layers,
+   * `"all"` exports every layer (project secrets become visible to the shared
+   * process), `"none"` exports nothing.
+   */
+  processEnv: ProcessEnvMode
   /** Enabled layers. */
   layers: LayerOptions
   /** Silence warnings. */
@@ -59,6 +69,7 @@ export const DEFAULT_OPTIONS: DotenvOptions = {
   dotenvx: false,
   shell: true,
   mcp: true,
+  processEnv: "global",
   layers: { global: true, custom: true, project: true, dotenvDir: true },
   quiet: false,
 }
@@ -83,6 +94,10 @@ function asStringArrayOrNull(value: unknown): string[] | null {
   return items.length > 0 ? items : null
 }
 
+function asProcessEnvMode(value: unknown, fallback: ProcessEnvMode): ProcessEnvMode {
+  return value === "global" || value === "all" || value === "none" ? value : fallback
+}
+
 /**
  * Normalize raw plugin options. Never throws: invalid values fall back to their
  * default.
@@ -100,6 +115,7 @@ export function normalizeOptions(raw: unknown): DotenvOptions {
     dotenvx: asBoolean(input.dotenvx, DEFAULT_OPTIONS.dotenvx),
     shell: asBoolean(input.shell, DEFAULT_OPTIONS.shell),
     mcp: asBoolean(input.mcp, DEFAULT_OPTIONS.mcp),
+    processEnv: asProcessEnvMode(input.processEnv, DEFAULT_OPTIONS.processEnv),
     layers: {
       global: asBoolean(layers.global, DEFAULT_OPTIONS.layers.global),
       custom: asBoolean(layers.custom, DEFAULT_OPTIONS.layers.custom),

@@ -15,7 +15,9 @@ import { normalizeOptions } from "./options.ts"
  *   - the environment of shell commands (`shell.hook("create.before")`);
  *   - the MCP server configuration, resolving `{env:VAR}` and `${VAR}`.
  *
- * It never writes to `process.env` and never logs variable values.
+ * It can export selected variables to `process.env` (see the `processEnv`
+ * option) so OpenCode's native `{env:VAR}` expansion resolves them. It never
+ * logs variable values.
  */
 
 interface Disposable {
@@ -43,6 +45,14 @@ export default Plugin.define({
 
     const lookup: Lookup = (name) => loaded.env[name] ?? process.env[name]
     const disposables: Disposable[] = []
+
+    // Export selected variables to process.env so OpenCode's native
+    // `{env:VAR}` expansion resolves them. Done before registering transforms.
+    if (options.processEnv !== "none") {
+      for (const [key, value] of Object.entries(loaded.processEnv)) {
+        process.env[key] = value
+      }
+    }
 
     if (options.shell && ctx.shell?.hook) {
       const registration = await ctx.shell.hook("create.before", (event) => {

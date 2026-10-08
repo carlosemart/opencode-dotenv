@@ -9,15 +9,23 @@ import type { ProcessEnv } from "./parse.ts"
  * Resolve the ordered list of candidate directories, from **highest to lowest
  * precedence**, mirroring OpenCode's configuration hierarchy:
  *
- *   1. `.opencode` directories (closest -> farthest)
- *   2. direct project configs (closest -> farthest) plus the base directory
- *   3. custom config (`dirname($OPENCODE_CONFIG)`)
- *   4. global config (`$OPENCODE_CONFIG_DIR` or `~/.config/opencode`)
+ *   1. `.opencode` directories (closest -> farthest)  [local]
+ *   2. direct project configs (closest -> farthest) plus the base directory  [local]
+ *   3. custom config (`dirname($OPENCODE_CONFIG)`)  [global]
+ *   4. global config (`$OPENCODE_CONFIG_DIR` or `~/.config/opencode`)  [global]
  *
  * The remote configuration layer (`.well-known/opencode`) is ignored.
  */
 
 const CONFIG_FILES = ["opencode.json", "opencode.jsonc"]
+
+/** Whether a directory belongs to the user (global) or to the project (local). */
+export type LayerScope = "global" | "local"
+
+export interface ResolvedDirectory {
+  path: string
+  scope: LayerScope
+}
 
 export interface ResolveInput {
   options: DotenvOptions
@@ -28,7 +36,7 @@ export interface ResolveInput {
 
 export interface ResolvedLayers {
   /** Directories from highest to lowest precedence. */
-  directories: string[]
+  directories: ResolvedDirectory[]
   /** Active profile, or `null`. */
   profile: string | null
 }
@@ -68,33 +76,33 @@ export function resolveLayers(input: ResolveInput): ResolvedLayers {
   const base = resolve(expandHome(input.options.directory ?? input.directory, home))
 
   const chain = ancestors(base)
-  const directories: string[] = []
+  const directories: ResolvedDirectory[] = []
 
-  const push = (directory: string): void => {
-    if (!directories.includes(directory)) directories.push(directory)
+  const push = (path: string, scope: LayerScope): void => {
+    if (!directories.some((entry) => entry.path === path)) directories.push({ path, scope })
   }
 
   if (input.options.layers.dotenvDir) {
     for (const directory of chain) {
-      if (existsSync(join(directory, ".opencode"))) push(join(directory, ".opencode"))
+      if (existsSync(join(directory, ".opencode"))) push(join(directory, ".opencode"), "local")
     }
   }
 
   if (input.options.layers.project) {
     const withConfig = chain.filter(hasConfig)
     if (!withConfig.includes(base)) withConfig.unshift(base)
-    for (const directory of withConfig) push(directory)
+    for (const directory of withConfig) push(directory, "local")
   }
 
   if (input.options.layers.custom && input.processEnv.OPENCODE_CONFIG) {
-    push(dirname(resolve(expandHome(input.processEnv.OPENCODE_CONFIG, home))))
+    push(dirname(resolve(expandHome(input.processEnv.OPENCODE_CONFIG, home))), "global")
   }
 
   if (input.options.layers.global) {
     const globalDir = input.processEnv.OPENCODE_CONFIG_DIR
       ? resolve(expandHome(input.processEnv.OPENCODE_CONFIG_DIR, home))
       : join(home, ".config", "opencode")
-    push(globalDir)
+    push(globalDir, "global")
   }
 
   return { directories, profile }

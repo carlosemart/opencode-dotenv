@@ -18,8 +18,14 @@ export interface LoadInput {
 }
 
 export interface LoadResult {
-  /** Effective variables contributed by files (already merged with process.env). */
+  /** Effective variables for this location (merged, ready for shell/MCP). */
   env: EnvMap
+  /**
+   * Subset of variables the plugin should export to `process.env` so that
+   * OpenCode's native `{env:VAR}` expansion resolves them. Depends on
+   * `options.processEnv`.
+   */
+  processEnv: EnvMap
   /** Paths read, for diagnostics. */
   files: string[]
   /** Names of the loaded variables. */
@@ -57,7 +63,8 @@ async function readParsedFile(
 
 /**
  * Load the `.env` files applying the layer and profile model, and return the
- * effective map for the location. Never logs values.
+ * effective map for the location plus the subset to export to `process.env`.
+ * Never logs values.
  */
 export async function loadEnv(input: LoadInput): Promise<LoadResult> {
   const { options, processEnv, log } = input
@@ -67,11 +74,13 @@ export async function loadEnv(input: LoadInput): Promise<LoadResult> {
     processEnv,
   })
 
-  const filesEnv: EnvMap = {}
+  const globalEnv: EnvMap = {}
+  const projectEnv: EnvMap = {}
+  const merged: EnvMap = {}
   const files: string[] = []
   const names = candidateFiles(options, profile)
 
-  for (const directory of directories) {
+  for (const { path: directory, scope } of directories) {
     for (const name of names) {
       const path = join(directory, name)
       if (!existsSync(path)) continue
@@ -80,21 +89,37 @@ export async function loadEnv(input: LoadInput): Promise<LoadResult> {
       if (!parsed) continue
 
       files.push(path)
-      // First occurrence wins (precedence is already ordered high to low).
       for (const [key, value] of Object.entries(parsed)) {
-        if (!(key in filesEnv)) filesEnv[key] = value
+        // First occurrence wins (directories are ordered high to low).
+        const bucket = scope === "global" ? globalEnv : projectEnv
+        if (!(key in bucket)) bucket[key] = value
+        if (!(key in merged)) merged[key] = value
       }
     }
   }
 
-  const expanded = options.expand ? expandEnv(filesEnv, (name) => processEnv[name]) : filesEnv
+  const fallback = (name: string): string | undefined => processEnv[name]
+  const expanded = options.expand ? expandEnv(merged, fallback) : merged
 
   const env: EnvMap = {}
   for (const [key, value] of Object.entries(expanded)) {
     env[key] = options.override ? value : (processEnv[key] ?? value)
   }
 
+  const exported: EnvMap = {}
+  if (options.processEnv === "all") {
+    Object.assign(exported, env)
+  } else if (options.processEnv === "global") {
+    // Export user-level values only, and never a value overridden by the
+    // project layer (that would leak a project secret through process.env).
+    const globalExpanded = options.expand ? expandEnv(globalEnv, fallback) : globalEnv
+    for (const key of Object.keys(globalEnv)) {
+      if (key in projectEnv) continue
+      exported[key] = options.override ? globalExpanded[key] : (processEnv[key] ?? globalExpanded[key])
+    }
+  }
+
   log.info(`${files.length} .env file(s), ${Object.keys(env).length} variable(s)`)
 
-  return { env, files, keys: Object.keys(env) }
+  return { env, processEnv: exported, files, keys: Object.keys(env) }
 }

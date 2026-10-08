@@ -15,6 +15,12 @@ describe("normalizeOptions", () => {
     expect(options.files).toEqual([".env.pre"])
   })
 
+  it("defaults processEnv to global and validates it", () => {
+    expect(normalizeOptions({}).processEnv).toBe("global")
+    expect(normalizeOptions({ processEnv: "all" }).processEnv).toBe("all")
+    expect(normalizeOptions({ processEnv: "nonsense" }).processEnv).toBe("global")
+  })
+
   it("ignores invalid values and falls back to defaults", () => {
     const options = normalizeOptions({ flow: "yes", files: [], env: 42, layers: { global: false } })
     expect(options.flow).toBe(true)
