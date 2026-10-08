@@ -1,0 +1,5 @@
+# mise toolchain for this repository.
+# `node` bundles `npm`, so no separate npm entry is needed.
+# Keep the major version in sync with .nvmrc.
+[tools]
+node = "22"

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "name": "@carlosemart/opencode-dotenv",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Plugin for OpenCode that loads .env files into the app, making local environment variables available to your sessions and tools.",
   "type": "module",
   "license": "MIT",
@@ -23,9 +23,10 @@
     "plugin"
   ],
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./index.ts"
   },
   "files": [
+    "index.ts",
     "src",
     "README.md",
     "LICENSE"
@@ -37,13 +38,16 @@
     "node": ">=18"
   },
   "dependencies": {
-    "@opencode/plugin": "latest"
+    "@opencode/plugin": "^2.0.25"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   }
 }

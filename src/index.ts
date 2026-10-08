@@ -1,15 +1,77 @@
 import { Plugin } from "@opencode/plugin"
 
+import { loadEnv } from "./env/load.ts"
+import { applyMcpEnv, type Lookup, type McpEditorLike } from "./inject/mcp.ts"
+import { applyShellEnv, type ShellEvent } from "./inject/shell.ts"
+import { createLogger } from "./log.ts"
+import { normalizeOptions } from "./options.ts"
+
 /**
  * opencode-dotenv
  *
- * Andamiaje del plugin. La lógica (lectura, parseo e inyección de los ficheros
- * `.env`) se implementará más adelante. Consulta el README para el diseño
- * previsto (opciones, precedencia y alcance).
+ * Loads `.env` files by layer (global and project) and injects them, scoped to
+ * the location, through two surfaces:
+ *
+ *   - the environment of shell commands (`shell.hook("create.before")`);
+ *   - the MCP server configuration, resolving `{env:VAR}` and `${VAR}`.
+ *
+ * It can export selected variables to `process.env` (see the `processEnv`
+ * option) so OpenCode's native `{env:VAR}` expansion resolves them. It never
+ * logs variable values.
  */
+
+interface Disposable {
+  dispose(): Promise<void> | void
+}
+
 export default Plugin.define({
   id: "carlosemart.dotenv",
-  setup() {
-    // TODO: cargar ficheros .env y exponer sus variables.
+  async setup(ctx) {
+    const options = normalizeOptions(ctx.options)
+    const log = createLogger(options.quiet)
+
+    let loaded
+    try {
+      loaded = await loadEnv({
+        options,
+        directory: ctx.location.directory,
+        processEnv: process.env,
+        log,
+      })
+    } catch (error) {
+      log.warn(`could not load .env files: ${error instanceof Error ? error.message : "error"}`)
+      return
+    }
+
+    const lookup: Lookup = (name) => loaded.env[name] ?? process.env[name]
+    const disposables: Disposable[] = []
+
+    // Export selected variables to process.env so OpenCode's native
+    // `{env:VAR}` expansion resolves them. Done before registering transforms.
+    if (options.processEnv !== "none") {
+      for (const [key, value] of Object.entries(loaded.processEnv)) {
+        process.env[key] = value
+      }
+    }
+
+    if (options.shell && ctx.shell?.hook) {
+      const registration = await ctx.shell.hook("create.before", (event) => {
+        applyShellEnv(event as unknown as ShellEvent, loaded.env, options)
+      })
+      disposables.push(registration)
+    }
+
+    if (options.mcp && ctx.mcp?.transform) {
+      const registration = await ctx.mcp.transform((editor) => {
+        applyMcpEnv(editor as unknown as McpEditorLike, lookup, options, log)
+      })
+      disposables.push(registration)
+    }
+
+    return async () => {
+      for (const registration of disposables) {
+        await registration.dispose()
+      }
+    }
   },
 })
