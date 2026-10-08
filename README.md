@@ -185,8 +185,15 @@ There are two ways a token in the MCP configuration gets a value:
 | `"none"`     | nothing                                       | only variables already in the environment |
 
 Project-layer values are intentionally **not** exported in `"global"` mode, so a
-project secret never leaks into the shared process. Use `${VAR}` for
-project-scoped values.
+project secret never leaks into the shared process.
+
+> [!NOTE]
+> On the first startup after installing the plugin, a `{env:VAR}` token whose
+> value comes only from a `.env` file can briefly resolve to an empty string.
+> OpenCode expands `{env:VAR}` natively from `process.env`, and the plugin
+> populates `process.env` during its own setup. If an MCP server connects before
+> that export happens, the first attempt may carry an empty value; it resolves
+> once the plugin has loaded and the configuration is re-evaluated.
 
 The plugin also substitutes `${VAR}` and `{env:VAR}` in:
 
