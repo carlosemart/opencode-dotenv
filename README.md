@@ -156,9 +156,14 @@ installed, encrypted values are kept as-is and a warning is logged.
 
 ## Development
 
+This repository pins its Node toolchain with [mise](https://mise.jdx.dev/)
+(`.mise.toml`), which also provides `npm`. The pinned major version matches
+`.nvmrc`.
+
 ```bash
 git clone https://github.com/carlosemart/opencode-dotenv.git
 cd opencode-dotenv
+mise install
 npm install
 npm run typecheck
 npm test
