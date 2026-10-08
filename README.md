@@ -130,6 +130,43 @@ A project `.env` never leaks into another project.
 | `layers`    | `object`   | all `true`       | Enable/disable each layer (`global`, `custom`, `project`, `dotenvDir`). |
 | `quiet`     | `boolean`  | `false`          | Silence warnings.                                        |
 
+## Environment variables
+
+Besides the options above, the plugin reads a few variables from the
+environment. Only `OPENCODE_ENV` is plugin-specific; the rest are OpenCode or
+system variables.
+
+### Read by the plugin
+
+| Variable | Used for |
+| -------- | -------- |
+| `OPENCODE_ENV` | Profile name, used when the `env` option is not set. |
+| `OPENCODE_CONFIG_DIR` | Directory of the global layer. Defaults to `~/.config/opencode`. |
+| `OPENCODE_CONFIG` | Custom config file; the plugin uses its `dirname` as the custom layer. |
+| `HOME` | Expanding `~` and resolving the default global directory. |
+| `DOTENV_PRIVATE_KEY` | Generic dotenvx private key, when `dotenvx` is enabled. |
+| `DOTENV_PRIVATE_KEY_<PROFILE>` | dotenvx private key for a specific profile. |
+| any `process.env` entry | Fallback for `${VAR}` expansion and, unless `override`, wins over `.env` values. |
+
+When `dotenvx` is enabled, a `.env.keys` file next to a `.env` is also read for
+private keys (it is a file, not an environment variable).
+
+### Written by the plugin
+
+The plugin writes to `process.env` according to the `processEnv` option, so
+OpenCode's native `{env:VAR}` expansion can resolve the values. See
+[MCP resolution](#mcp-resolution).
+
+### Overlaps
+
+- `env` (option) and `OPENCODE_ENV` (variable) hold the same value: the option
+  wins and the variable is the fallback.
+- `layers.global` / `layers.custom` (options) enable or disable the layers whose
+  locations are chosen by `OPENCODE_CONFIG_DIR` / `OPENCODE_CONFIG` (variables).
+  They are complementary, not conflicting.
+- `override` (option) interacts with the real `process.env`: by default the
+  environment wins; with `override: true` the `.env` wins.
+
 ## MCP resolution
 
 There are two ways a token in the MCP configuration gets a value:
