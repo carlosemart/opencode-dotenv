@@ -169,32 +169,22 @@ OpenCode's native `{env:VAR}` expansion can resolve the values. See
 
 ## MCP resolution
 
-There are two ways a token in the MCP configuration gets a value:
+**Use `${VAR}` for tokens in the MCP configuration.** The plugin resolves it
+from the loaded `.env` files (any layer), scoped to the location.
 
-- **`${VAR}`** is resolved by the plugin from the loaded `.env` files (any
-  layer), scoped to the location. This always works.
-- **`{env:VAR}`** is expanded **natively by OpenCode from `process.env`**, before
-  the plugin sees the configuration. If `VAR` is not in `process.env`, it becomes
-  empty. The plugin therefore exports selected variables to `process.env`
-  according to the `processEnv` option:
-
-| `processEnv` | Exported to `process.env`                     | `{env:VAR}` works for |
-| ------------ | --------------------------------------------- | --------------------- |
-| `"global"`   | global + custom layers (user-level)           | user-level secrets    |
-| `"all"`      | every layer, including project                | everything (project secrets become visible to the shared process) |
-| `"none"`     | nothing                                       | only variables already in the environment |
-
-Project-layer values are intentionally **not** exported in `"global"` mode, so a
-project secret never leaks into the shared process. Use `${VAR}` for
-project-scoped values.
-
-The plugin also substitutes `${VAR}` and `{env:VAR}` in:
+The plugin substitutes `${VAR}` in:
 
 - `headers` of `remote` servers;
 - `environment` of `local` servers.
 
 Lookup order is the loaded `.env` first, then `process.env`. Tokens that cannot
 be resolved are left untouched and reported by name (unless `quiet`).
+
+OpenCode also supports `{env:VAR}`, which it expands natively from `process.env`
+before the plugin runs. In practice this has not been picked up reliably for MCP
+configuration on a real OpenCode, so use `${VAR}` for MCP tokens. The
+`processEnv` option still exports selected variables to `process.env` for other
+native `{env:VAR}` uses.
 
 ## Encrypted values (dotenvx)
 
