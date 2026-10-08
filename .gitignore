@@ -12,6 +12,9 @@ npm-debug.log*
 .env
 .env.*
 !.env.example
+# Claves privadas de dotenvx (ya cubiertas por .env.*; explícitas por claridad)
+.env.keys
+.env.*.keys
 
 # Sistema / editores
 .DS_Store
