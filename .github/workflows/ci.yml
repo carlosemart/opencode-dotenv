@@ -6,8 +6,8 @@ on:
   pull_request:
 
 jobs:
-  typecheck:
-    name: Typecheck
+  check:
+    name: Typecheck and test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -23,3 +23,6 @@ jobs:
 
       - name: Typecheck
         run: npm run typecheck
+
+      - name: Test
+        run: npm test
